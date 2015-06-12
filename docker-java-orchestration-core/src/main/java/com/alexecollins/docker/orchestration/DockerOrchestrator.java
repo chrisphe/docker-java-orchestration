@@ -39,6 +39,8 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -285,18 +287,31 @@ public class DockerOrchestrator {
 
             throwExceptionIfThereIsAnError(build.exec());
 
+            String imageId = getNewestImage().getId();
+
             for (String otherTag : repo.conf(id).getTags()) {
                 int lastIndexOfColon = otherTag.lastIndexOf(':');
                 if (lastIndexOfColon > -1) {
                     String repositoryName = otherTag.substring(0, lastIndexOfColon);
                     String tagName = otherTag.substring(lastIndexOfColon + 1);
-                    docker.tagImageCmd(findImageId(id), repositoryName, tagName).withForce().exec();
+                    docker.tagImageCmd(imageId, repositoryName, tagName).withForce().exec();
                 }
             }
         } catch (DockerException | IOException e) {
             throw new OrchestrationException(e);
         }
 
+    }
+
+    private Image getNewestImage() {
+        List<Image> images = docker.listImagesCmd().withShowAll(true).exec();
+
+        return Collections.max(images, new Comparator<Image>() {
+            @Override
+            public int compare(Image a, Image b) {
+                return a.getCreated() > b.getCreated() ? 1 : -1;
+            }
+        });
     }
 
     private String findImageId(Id id) {
